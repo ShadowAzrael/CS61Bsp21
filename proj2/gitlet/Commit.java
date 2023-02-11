@@ -21,6 +21,27 @@ public class Commit {
 
     /** The message of this Commit. */
     private String message;
+    private String timestamp;
+    private Commit parent;
 
     /* TODO: fill in the rest of this class. */
+    public Commit(String message, Commit parent) {
+        this.message = message;
+        this.parent = parent;
+        if (this.parent == null) {
+            this.timestamp = "00:00:00 UTC, Thursday";
+        }
+    }
+
+    public String getMessage() {
+        return this.message;
+    }
+
+    public String getTimestamp() {
+        return this.timestamp;
+    }
+
+    public Commit getParent() {
+        return this.parent;
+    }
 }
