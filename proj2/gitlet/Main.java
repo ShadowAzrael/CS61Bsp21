@@ -67,6 +67,9 @@ public class Main {
                 }
                 checkOut(args);
                 break;
+            default:
+                message("No command with that name exists.");
+                exit(0);
         }
     }
 }
