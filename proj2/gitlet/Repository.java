@@ -82,12 +82,15 @@ public class Repository {
     }
 
     public static boolean untrackFileExists(Commit commit) {
+        Set<String> nowTrackSet = getHeadCommit().getBlobMap().keySet();
         List<String> workFileNames = plainFilenamesIn(CWD);
         Set<String> currTrackSet = commit.getBlobMap().keySet();
 
         for (String workFile : workFileNames) {
             if(!currTrackSet.contains(workFile)) {
-                return true;
+                if(nowTrackSet.contains(workFile)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -136,7 +139,7 @@ public class Repository {
             exit(0);
         }
 
-        String fileAddedcontent = readContentsAsString(fileAdded);
+        String fileAddedContent = readContentsAsString(fileAdded);
 
         Commit headCommit = getHeadCommit();
         HashMap<String, String> headCommitBlobMap = headCommit.getBlobMap();
@@ -148,7 +151,7 @@ public class Repository {
 
             //if staged content same with addFile's content ,do nothing
             //and if exists remove from staged, and remove from removal
-            if (commmitContent.equals(fileAddedcontent)) {
+            if (commmitContent.equals(fileAddedContent)) {
                 List<String> filesAdd = plainFilenamesIn(ADD_STAGE_DIR);
                 List<String> filesRM = plainFilenamesIn(REMOVE_STAGE_DIR);
 
@@ -316,7 +319,7 @@ public class Repository {
         List<String> commitFiles = plainFilenamesIn(COMMIT_FOLDER);
         for (String commitFileName : commitFiles) {
             Commit commit1 = getCommit(commitFileName);
-            if (commit1.getMessage().equals(findMsg)) {
+            if (commit1.getMessage().contains(findMsg)) {
                 message(commit1.getHashName());
                 found = true;
             }
@@ -531,7 +534,7 @@ public class Repository {
         List<String> workFileNames = plainFilenamesIn(CWD);
 
         //detect track Files
-        if (untrackFileExists(headCommit)) {
+        if (untrackFileExists(branchHeadCommit)) {
             System.out.println("There is an untracked file in the way; "
                     + "delete it, or add and commit it first.");
             exit(0);
@@ -604,7 +607,7 @@ public class Repository {
 
         //detect whether there are files in the CWD that are not tracked by the current branch
         List <String> workFileNames = plainFilenamesIn(CWD);
-        if (untrackFileExists(headCommit)) {
+        if (untrackFileExists(commit)) {
             Set<String> currTrackSet = headCommit.getBlobMap().keySet();
             Set<String> resetTrackSet = commit.getBlobMap().keySet();
             boolean isUntracked = false;
@@ -746,7 +749,7 @@ public class Repository {
             System.out.println("Cannot merge a branch with itself.");
         }
 
-        if (untrackFileExists(headCommit)) {
+        if (untrackFileExists(otherHeadcommit)) {
             message("There is an untracked file in the way; "
                     + "delete it, or add and commit it first.");
             exit(0);
