@@ -7,7 +7,7 @@ import static java.lang.System.exit;
 /**
  * Driver class for Gitlet, a subset of the Git version-control system.
  *
- * @author TODO
+ * @author Li
  */
 public class Main {
 
@@ -110,7 +110,6 @@ public class Main {
             default:
                 message("No command with that name exists.");
                 exit(0);
-                // TODO: FILL THE REST IN
         }
     }
 }
