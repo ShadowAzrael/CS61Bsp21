@@ -199,7 +199,7 @@ public class Repository {
         commit.setDirectParent(prevCommit.getHashName());
         commit.setTimestamp(new Date(System.currentTimeMillis()));
         commit.setMessage(commitMsg);
-        //        commit.setBranchName(prevCommit.getBranchName()); // 在log或者status中需要展示本次commit的分支
+        //        commit.setBranchName(prevCommit.getBranchName()); // In the log or status, you need to display the branch of the commit
 
         for(String stageFileName : addStageFiles) {
             String hashName = readContentsAsString(join(ADD_STAGE_DIR, stageFileName));
@@ -282,6 +282,9 @@ public class Repository {
     public static void printCommitLog(Commit commit) {
         System.out.println("===");
         System.out.println("commit " + commit.getHashName());
+        if (commit.getOtherParent() != "") {
+            System.out.println("Merge:" + commit.getDirectParent().substring(0, 7)+ " " + commit.getOtherParent().substring(0, 7));
+        }
         System.out.println("Date: " + dateToTimeStamp(commit.getTimestamp()));
         System.out.println(commit.getMessage());
         System.out.print("\n");
@@ -313,7 +316,7 @@ public class Repository {
         List<String> commitFiles = plainFilenamesIn(COMMIT_FOLDER);
         for (String commitFileName : commitFiles) {
             Commit commit1 = getCommit(commitFileName);
-            if (commit1.getMessage().contains(findMsg)) {
+            if (commit1.getMessage().equals(findMsg)) {
                 message(commit1.getHashName());
                 found = true;
             }
@@ -539,7 +542,7 @@ public class Repository {
             restrictedDelete(join(CWD, workFile));
         }
 
-        //rewrite to the CWD
+        //overwrite to the CWD
         for (var trackedFileName : fileNameSet) {
             File workFile = join(CWD, trackedFileName);
             String blobHash = branchHeadBlobMap.get(trackedFileName);
@@ -854,7 +857,6 @@ public class Repository {
      * @param branchName
      */
     public static void commitFileForMerge(String commitMsg, String branchName) {
-
 
         /* 获取addstage中的filename和hashname */
         List<String> addStageFiles = plainFilenamesIn(ADD_STAGE_DIR);
