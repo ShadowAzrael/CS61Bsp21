@@ -87,8 +87,8 @@ public class Repository {
         Set<String> currTrackSet = commit.getBlobMap().keySet();
 
         for (String workFile : workFileNames) {
-            if(!currTrackSet.contains(workFile)) {
-                if(nowTrackSet.contains(workFile)) {
+            if(nowTrackSet.contains(workFile)) {
+                if(currTrackSet.contains(workFile)) {
                     return true;
                 }
             }
