@@ -282,7 +282,7 @@ public class Repository {
     public static void printCommitLog(Commit commit) {
         System.out.println("===");
         System.out.println("commit " + commit.getHashName());
-        if (commit.getOtherParent() != "") {
+        if (commit.getOtherParent() != null) {
             System.out.println("Merge:" + commit.getDirectParent().substring(0, 7)+ " " + commit.getOtherParent().substring(0, 7));
         }
         System.out.println("Date: " + dateToTimeStamp(commit.getTimestamp()));
