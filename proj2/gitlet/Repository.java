@@ -769,7 +769,7 @@ public class Repository {
                     if(!otherHeadCommitBolbMap.get(splitTrackName)
                             .equals(splitCommitBolbMap.get(splitTrackName))) {
                         // use checkout to overwrite in CWD with other files, and add in addStage
-                        String[] checkArgs = {"checkout", otherHeadCommit.getHashName(), "--", splitTrackName}
+                        String[] checkArgs = {"checkout", otherHeadCommit.getHashName(), "--", splitTrackName};
                         checkOut(checkArgs);
                         addStage(splitTrackName);
                     }
