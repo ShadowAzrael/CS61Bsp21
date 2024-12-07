@@ -14,7 +14,7 @@ import static java.lang.System.exit;
  * Represents a gitlet commit object.
  *  does at a high level.
  *
- * @author Li
+ * @author ethanyi
  */
 public class Commit implements Serializable {
     /**
@@ -71,7 +71,7 @@ public class Commit implements Serializable {
 
 
     /**
-     * @param blobName blob hashname
+     * @param blobName blob的hashname
      */
     public void addBlob(String fileName, String blobName) {
         this.blobMap.put(fileName, blobName);
@@ -123,26 +123,27 @@ public class Commit implements Serializable {
     public void setOtherParent(String otherParent) {
         this.otherParent = otherParent;
     }
-    /* ======================== the above is getter and setter ======================*/
+    /* ======================== 以上为getter和setter ======================*/
 
     /**
-     * get HEAD pointer Commit Instance
+     * 用于获取HEAD指针指向的Commit对象
      *
      * @return
      */
     public static Commit getHeadCommit() {
-        /* get HEAD pointer,to the latest commit */
+        /* 获取HEAD指针,这个指针指向目前最新的commit */
         String headContent = readContentsAsString(HEAD_POINT);
         String headHashName = headContent.split(":")[1];
         File commitFile = join(COMMIT_FOLDER, headHashName);
-
+        /* 获取commit文件 */
         Commit commit = readObject(commitFile, Commit.class);
 
         return commit;
+
     }
 
     /**
-     * get branches folder branch commit object
+     * 用于获取branches文件夹中分支文件指向的Commit对象
      *
      * @return
      */
@@ -155,12 +156,12 @@ public class Commit implements Serializable {
             exit(0);
         }
 
-        /* get The HEAD Pointer,Points To The Latest Commit */
+        /* 获取HEAD指针,这个指针指向目前最新的commit */
         String headHashName = readContentsAsString(brancheFile);
 
 
         File commitFile = join(COMMIT_FOLDER, headHashName);
-        /* get The Commit File */
+        /* 获取commit文件 */
         Commit commit = readObject(commitFile, Commit.class);
 
         return commit;
@@ -168,13 +169,14 @@ public class Commit implements Serializable {
     }
 
     /**
-     * use the hashname to Get the commit object
+     * 通过hashname来获取Commit对象
      *
-     * @param hashName
+     * @param hashName commit自己的hashName
      * @return
      */
     public static Commit getCommit(String hashName) {
         List<String> commitFiles = plainFilenamesIn(COMMIT_FOLDER);
+        /* 如果在commit文件夹中不存在此文件 */
         if (!commitFiles.contains(hashName)) {
             return null;
         }
@@ -185,18 +187,19 @@ public class Commit implements Serializable {
 
 
     /**
-     * Given a commitId, a corresponding commit object is returned
+     * 给定一个commitId，返回一个相对应的commit对象，若是没有这个commit对象，则返回null
      *
      * @param commitId
-     * @return commit or null
+     * @return commit或者null
      */
     public static Commit getCommitFromId(String commitId) {
         Commit commit = null;
+        /* 查找对应的commit */
 
-        /*  finding in commit folder */
+        /*  直接从commit文件夹中依次寻找 */
         String resCommitId = null;
         List<String> commitFileNames = plainFilenamesIn(COMMIT_FOLDER);
-        /* for prefix */
+        /* 用于应对前缀的情况 */
         for (String commitFileName : commitFileNames) {
             if (commitFileName.startsWith(commitId)) {
                 resCommitId = commitFileName;
@@ -215,7 +218,7 @@ public class Commit implements Serializable {
     }
 
     /**
-     * Get the common node of both branches, search only from directParents
+     * 获取两个分支的共同节点，仅从directParents搜索
      *
      * @param commitA
      * @param commitB
@@ -224,10 +227,10 @@ public class Commit implements Serializable {
     public static Commit getSplitCommit(Commit commitA, Commit commitB) {
 
         Commit p1 = commitA, p2 = commitB;
-
+        /* 用于遍历提交链 */
         Deque<Commit> dequecommitA = new ArrayDeque<>();
         Deque<Commit> dequecommitB = new ArrayDeque<>();
-        /* for Save Visited Nodes */
+        /* 用于保存访问过的节点 */
         HashSet<String> visitedInCommitA = new HashSet<>();
         HashSet<String> visitedInCommitB = new HashSet<>();
 
@@ -236,7 +239,7 @@ public class Commit implements Serializable {
 
         while (!dequecommitA.isEmpty() || !dequecommitB.isEmpty()) {
             if (!dequecommitA.isEmpty()) {
-                /* commitA have Traversable Objects In The Queue */
+                /* commitA 的队列中存在可遍历对象 */
                 Commit currA = dequecommitA.poll();
                 if (visitedInCommitB.contains(currA.getHashName())) {
                     return currA;
@@ -255,12 +258,14 @@ public class Commit implements Serializable {
             }
         }
 
+
+        // 如果没有找到，就是null
         return null;
 
     }
 
     /**
-     * put the parent node of this node (or two nodes) into Queue
+     * 将此节点的父节点（或者是两个父节点）放入队列中
      *
      * @param commit
      * @param dequeCommit

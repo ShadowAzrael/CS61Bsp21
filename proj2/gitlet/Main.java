@@ -7,7 +7,7 @@ import static java.lang.System.exit;
 /**
  * Driver class for Gitlet, a subset of the Git version-control system.
  *
- * @author Li
+ * @author TODO
  */
 public class Main {
 
@@ -30,6 +30,7 @@ public class Main {
                 initPersistence();
                 break;
             case "add":
+                // TODO: handle the `add [filename]` command\
                 String addFileName = args[1];
                 addStage(addFileName);
                 break;
@@ -109,6 +110,7 @@ public class Main {
             default:
                 message("No command with that name exists.");
                 exit(0);
+                // TODO: FILL THE REST IN
         }
     }
 }

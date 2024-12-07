@@ -26,10 +26,11 @@ public class Blob implements Serializable {
 
 
     /**
-     * save a Blob Object to the BLOB_FOLDER File
+     * 将blob对象保存进 BLOB_FOLDER文件，内容就是blob文件的content
      */
     public void saveBlob() {
         if (!filePath.exists()) {
+            // 如果这个blob原先不存在，则进行blob的储存
             writeContents(filePath, this.content);
         }
 
@@ -38,23 +39,26 @@ public class Blob implements Serializable {
 
 
     /**
-     * get the content of the blob based on the blobName, where the blobName is a hash value
+     * 根据blobName获取到Blob的内容，其中blobName是一个hash值
+     * 若是没有这个文件，返回null
      *
-     * @return Blob content
+     * @return Blob的内容
      */
     public static String getBlobContentFromName(String blobName) {
+        /* 获取commit文件 */
         String blobContent = null;
         File blobFile = join(BLOBS_FOLDER, blobName);
         if (blobFile.isFile() && blobFile.exists()) {
             blobContent = readContentsAsString(blobFile);
         }
 
+
         return blobContent;
 
     }
 
     /**
-     * Overwrite the content of blob.content into the file
+     * 将blob.content中的内容覆盖进file文件中
      */
     public static void overWriteFileWithBlob(File file, String content) {
         writeContents(file, content);
