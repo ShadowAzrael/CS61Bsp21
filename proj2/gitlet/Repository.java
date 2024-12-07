@@ -17,11 +17,11 @@ import static java.lang.System.exit;
  *
  *  does at a high level.
  *
- *  @author TODO
+ *  @author Li
  */
 public class Repository {
     /**
-     * TODO: add instance variables here.
+     *
      *
      * List all instance variables of the Repository class here with a useful
      * comment above them describing what that variable represents and how that
@@ -93,12 +93,6 @@ public class Repository {
         return false;
     }
 
-    /**
-     *  overwrite blob. content to the file
-     */
-    public static void overWriteFileWithBlob(File file, String content) {
-        writeContents(file, content);
-    }
 
     /* ---------------------- implementations --------------------- */
     /**
@@ -264,6 +258,7 @@ public class Repository {
             File remoteFilePoint = new File(REMOVE_STAGE_DIR, rmFileName);
             writeContents(remoteFilePoint, "");
 
+            //delete file in Cwd, only when this file was tracked
             File fileDeleted = new File(CWD, rmFileName);
             restrictedDelete(fileDeleted);
         }
@@ -554,5 +549,360 @@ public class Repository {
 
         //save HEAD pointer
         saveHEAD(branchName, branchHeadCommit.getHashName());
+    }
+
+    /**
+     * java gitlet.Main branch [branch name]
+     */
+    public static void createBranch(String branchName) {
+        Commit headCommit = getHeadCommit();
+        List<String> fileNameinHeadDir = plainFilenamesIn(HEAD_DIR);
+        if (fileNameinHeadDir.contains(branchName)) {
+            message("A branch with that name already exists.");
+            exit(0);
+        }
+
+        saveBranch(branchName, headCommit.getHashName());
+    }
+
+    /**
+     * java gitlet.Main rm-branch [branchname]
+     */
+    public static void removeBranch(String branchName) {
+        File branchFile = join(HEAD_DIR, branchName);
+        if (!branchFile.exists()) {
+            System.out.println("A branch with that name does not exist.");
+            exit(0);
+        }
+        //branch is current branch or not
+        Commit headCommit = getHeadCommit();
+        if (getHeadBranchName().equals(branchName)) {
+            System.out.println("Cannot remove the current branch.");
+            exit(0);
+        }
+        //delete this branch pointer file
+        File branchHeadPoint = join(HEAD_DIR, branchName);
+        branchHeadPoint.delete();
+    }
+
+    /**
+     * java gitlet.Main reset [commit id]
+     *
+     *
+     */
+    public static void reset (String commitId) {
+        if(getCommitFromId(commitId) == null) {
+            System.out.println("No commit with that id exists.");
+            exit(0);
+        }
+        Commit headCommit = getHeadCommit();
+        Commit commit = getCommitFromId(commitId);
+        HashMap<String, String> commitBlobMap = commit.getBlobMap();
+
+        //detect whether there are files in the CWD that are not tracked by the current branch
+        List <String> workFileNames = plainFilenamesIn(CWD);
+        if (untrackFileExists(headCommit)) {
+            Set<String> currTrackSet = headCommit.getBlobMap().keySet();
+            Set<String> resetTrackSet = commit.getBlobMap().keySet();
+            boolean isUntracked = false;
+
+            /* workfile not in headCommit and commit, deleted in addStage, but saved in CWD */
+            for (String workFile : workFileNames) {
+                if (!currTrackSet.contains(workFile) && !resetTrackSet.contains(workFile)) {
+                    removeStage(workFile);
+                    isUntracked = true;
+                    break;
+                }
+            }
+            if(!isUntracked) {
+                message("There is an untracked file in the way; "
+                        + "delete it, or add and commit it first.");
+                exit(0);
+            }
+        }
+
+        for (String workFile : workFileNames) {
+            restrictedDelete(join(CWD, workFile));
+        }
+
+        for (var trackedFileName : commitBlobMap.keySet()) {
+            File workFile = join(CWD, trackedFileName);
+            String blobHash = commitBlobMap.get(trackedFileName);
+            String blobFromNameContent = getBlobContentFromName(blobHash);
+            writeContents(workFile, blobFromNameContent);
+        }
+
+        //branch and HEAD point to this commit
+        saveBranch(getHeadBranchName(), commitId);
+        saveHEAD(commit.getHashName(), commitId);
+    }
+
+    /**
+     * Merges files from the given branch into the current branch.
+     * If the split point is the same commit as the given branch,do nothing;
+     * the merge is complete, and the operation ends with the message:
+     * Given branch is an ancestor of the current branch.
+     *  <p>
+     * If the split point is the current branch, then the effect is to check out the given branch,
+     * and the operation ends after printing the message: Current branch fast-forwarded.
+     * Otherwise, we continue with the steps below.
+     *
+     * @apiNote
+     * case1. other: modified       HEAD:not modified -> CWD: other, need to be added
+     * case2. other: not modified   HEAD:modified     -> CWD: HEAD
+     * case3. other: modified       HEAD:modified     -> CWD: HEAD (consistent modified),do nothing
+     *                                               \-> CWD: Conflict (not consistent)
+     * case4. split: not exists     other:not exists     HEAD:be added   -> CWD: HEAD
+     * case5. split: not exists     other:be added       HEAD:not exists -> CWD; other, do nothing
+     * case6. other: be deleted     HEAD:not modified -> CWD: be deleted, and stage in removal
+     * case7. other: not mofidied   HEAD:be deleted   -> CWD: be deleted
+     */
+    public static void mergeBranch(String branchName) {
+        checkSafetyInMerge(branchName);
+        Commit headCommit = getHeadCommit();
+        Commit otherHeadCommit = getBranchHeadCommit(branchName, "A branch with that name does not exist.");
+
+        //get the spiltCommit Object
+        Commit splitCommit = getSplitCommit(headCommit, otherHeadCommit);
+        if (splitCommit.getHashName().equals(otherHeadCommit.getHashName())) {
+            message("Given branch is an ancestor of the current branch.");
+            exit(0);
+        }
+
+        HashMap<String, String> splitCommitBolbMap = splitCommit.getBlobMap();
+        Set<String> splitkeySet = splitCommitBolbMap.keySet();
+        HashMap<String, String> headCommitBolbMap = headCommit.getBlobMap();
+        Set<String> headKeySet = headCommitBolbMap.keySet();
+        HashMap<String, String> otherHeadCommitBolbMap = otherHeadCommit.getBlobMap();
+        Set<String> otherKeySet = otherHeadCommitBolbMap.keySet();
+
+        processSplitCommit(splitCommit, headCommit, otherHeadCommit);
+
+        /* To resolve the deletion operation */
+        for (var headTrackName : headKeySet) {
+            if (!otherHeadCommitBolbMap.containsKey(headTrackName)) {
+                if (!splitCommitBolbMap.containsKey(headTrackName)) {
+                    /* case4：If it don't have this file in either other or split */
+                    continue;
+                } else {
+                    /* split：exists  other：deleted */
+                    if (!headCommitBolbMap.get(headTrackName)
+                            .equals(splitCommitBolbMap.get(headTrackName))) {
+                        /* HEAD：modified */
+                        /* conflict */
+                        processConflict(headCommit, otherHeadCommit, headTrackName);
+                    }
+                    /* In other cases, case 6 has been deal with */
+                }
+            } else if (otherHeadCommitBolbMap.containsKey(headTrackName)
+                    && !splitCommitBolbMap.containsKey(headTrackName)) {
+                /* case3b other exists, split not exists，not consistent modified*/
+                if (!otherHeadCommitBolbMap.get(headTrackName)
+                        .equals(headCommitBolbMap.get(headTrackName))) {
+                    /*if not consistent modified,processConflict,if consistent continue*/
+                    processConflict(headCommit, otherHeadCommit, headTrackName);
+                }
+            }
+        }
+        for (var otherTrackName : otherKeySet) {
+            if (!headCommitBolbMap.containsKey(otherTrackName)
+                    && !splitCommitBolbMap.containsKey(otherTrackName)) {
+                /* case5: not exists in head and split */
+                String[] checkOutArgs = {"checkout",
+                        otherHeadCommit.getHashName(),
+                        "--",
+                        otherTrackName};
+                checkOut(checkOutArgs);
+                addStage(otherTrackName);
+            }
+        }
+        if (splitCommit.getHashName().equals(headCommit.getHashName())) {
+            message("Current branch fast-forwarded.");
+        }
+        /* do An Automatic Commit */
+        String commitMsg = String.format("Merged %s into %s.", branchName, getHeadBranchName());
+        commitFileForMerge(commitMsg, branchName);
+    }
+
+    public static void checkSafetyInMerge(String branchName) {
+        List<String> addStageFiles = plainFilenamesIn(ADD_STAGE_DIR);
+        List<String> removeStageFiles = plainFilenamesIn(REMOVE_STAGE_DIR);
+
+        if(!addStageFiles.isEmpty() || !removeStageFiles.isEmpty()) {
+            System.out.println("You have uncommitted changes.");
+            exit(0);
+        }
+
+        Commit headCommit = getHeadCommit();
+
+        String errMsg = "A branch with that name does not exist.";
+
+        Commit otherHeadcommit = getBranchHeadCommit(branchName, errMsg);
+
+        if(getHeadBranchName().equals(branchName)) {
+            System.out.println("Cannot merge a branch with itself.");
+        }
+
+        if (untrackFileExists(headCommit)) {
+            message("There is an untracked file in the way; "
+                    + "delete it, or add and commit it first.");
+            exit(0);
+        }
+    }
+
+    public static void processSplitCommit(Commit splitCommit, Commit headCommit, Commit otherHeadCommit) {
+        HashMap<String, String> splitCommitBolbMap = splitCommit.getBlobMap();
+        Set<String> splitKeySet = splitCommitBolbMap.keySet();
+        HashMap<String, String> headCommitBolbMap = headCommit.getBlobMap();
+        Set<String> headKeySet = headCommitBolbMap.keySet();
+        HashMap<String, String> otherHeadCommitBolbMap = otherHeadCommit.getBlobMap();
+        Set<String> otherKeySet = otherHeadCommitBolbMap.keySet();
+
+        //start in split
+        for (var splitTrackName : splitKeySet) {
+            //if files not modified in HEAD,include not being deleted
+            if (headCommitBolbMap.containsKey(splitTrackName)
+                    && headCommitBolbMap.get(splitTrackName).equals(splitCommitBolbMap.get(splitTrackName))) {
+                //if exists in other
+                if (otherHeadCommitBolbMap.containsKey(splitTrackName)) {
+                    //case1 not modified in HEAD, modified in other
+                    if(!otherHeadCommitBolbMap.get(splitTrackName)
+                            .equals(splitCommitBolbMap.get(splitTrackName))) {
+                        // use checkout to overwrite in CWD with other files, and add in addStage
+                        String[] checkArgs = {"checkout", otherHeadCommit.getHashName(), "--", splitTrackName}
+                        checkOut(checkArgs);
+                        addStage(splitTrackName);
+                    }
+                } else {
+                    //case6 not modified in HEAD, deleted in other
+                    removeStage(splitTrackName);
+                }
+            } else {
+                //modified in HEAD
+                if (otherHeadCommitBolbMap.containsKey(splitTrackName)
+                && otherHeadCommitBolbMap.get(splitTrackName).equals(splitCommitBolbMap.get(splitTrackName))) {
+                    /*case2 other not modified, HEAD modified, do nothing
+                    case7 other not modified, HEAD deleted, do nothing
+                     */
+                    continue;
+                } else {
+                    //modified and deleted in head
+                    if (!otherHeadCommitBolbMap.containsKey(splitTrackName)
+                    && !headCommitBolbMap.containsKey(splitTrackName)) {
+                        //case3a Consistent deleted
+                        continue;
+                    } else if (!otherHeadCommitBolbMap.containsKey(splitTrackName)
+                    || headCommitBolbMap.containsKey(splitTrackName)) {
+                        // only one headCommit delted, continue, move HEAD and other pointer
+                        continue;
+                    } else {
+                        if (otherHeadCommitBolbMap.get(splitTrackName)
+                                .equals(headCommitBolbMap.get(splitTrackName))) {
+                            //case3a consistent deleted
+                            continue;
+                        } else {
+                            // case3b not consistent modified, not include being deleted
+                            processConflict(headCommit, otherHeadCommit, splitTrackName);
+                        }
+                    }
+                }
+            }
+
+        }
+    }
+
+    //for file both deleted in 2 headCommit
+    public static void processConflict(Commit headCommit, Commit otherHeadCommit, String splitTrackName) {
+        String otherBlobFile = "";
+        String otherBlobContent = "";
+
+        String headBlobFile = "";
+        String headBlobContent = "";
+
+        HashMap<String, String> headCommitBolbMap = headCommit.getBlobMap();
+        HashMap<String, String> otherHeadCommitBolbMap = otherHeadCommit.getBlobMap();
+
+        message("Encountered a merge conflict.");
+
+        if (otherHeadCommitBolbMap.containsKey(splitTrackName)) {
+            otherBlobFile = otherHeadCommitBolbMap.get(splitTrackName);
+            otherBlobContent = getBlobContentFromName(otherBlobFile);
+        }
+
+        if (headCommitBolbMap.containsKey(splitTrackName)) {
+            headBlobFile = headCommitBolbMap.get(splitTrackName);
+            headBlobContent = getBlobContentFromName(headBlobFile);
+        }
+
+        /* modify The Contents Of The Work File*/
+        StringBuilder resContent = new StringBuilder();
+        resContent.append("<<<<<<< HEAD\n");
+        resContent.append(headBlobContent);
+        resContent.append("=======" + "\n");
+        resContent.append(otherBlobContent);
+        resContent.append(">>>>>>>" + "\n");
+
+        String resContentString = resContent.toString();
+        writeContents(join(CWD, splitTrackName), resContentString);
+        addStage(splitTrackName);
+    }
+
+    /**
+     * 根据commit重载的方法，作用是为了进行merge时候的自动commit
+     *
+     * @param commitMsg
+     * @param branchName
+     */
+    public static void commitFileForMerge(String commitMsg, String branchName) {
+
+
+        /* 获取addstage中的filename和hashname */
+        List<String> addStageFiles = plainFilenamesIn(ADD_STAGE_DIR);
+        List<String> removeStageFiles = plainFilenamesIn(REMOVE_STAGE_DIR);
+        /* 错误的情况，直接返回 */
+        if (addStageFiles.isEmpty() && removeStageFiles.isEmpty()) {
+            System.out.println("No changes added to the commit.");
+            exit(0);
+        }
+
+        if (commitMsg == null) {
+            System.out.println("Please enter a commit message.");
+            exit(0);
+        }
+
+        /* 获取最新的commit*/
+        Commit oldCommit = getHeadCommit();
+        Commit branchHeadCommit = getBranchHeadCommit(branchName, null);
+
+        /* 创建新的commit，newCommit根据oldCommit进行调整*/
+        Commit newCommit = new Commit(oldCommit);
+        newCommit.setDirectParent(oldCommit.getHashName());  // 指定父节点
+        newCommit.setTimestamp(new Date(System.currentTimeMillis())); // 修改新一次的commit的时间戳为目前时间
+        newCommit.setMessage(commitMsg); // 修改新一次的commit的时间戳为目前时间
+        newCommit.setOtherParent(branchHeadCommit.getHashName());   // 指定另一个父节点
+
+        /* 对每一个addstage中的fileName进行其路径的读取，保存进commit的blobMap */
+        for (String stageFileName : addStageFiles) {
+            String hashName = readContentsAsString(join(ADD_STAGE_DIR, stageFileName));
+            newCommit.addBlob(stageFileName, hashName);     // 在newCommit中更新blob
+            join(ADD_STAGE_DIR, stageFileName).delete();
+        }
+
+        HashMap<String, String> blobMap = newCommit.getBlobMap();
+
+        /* 对每一个rmstage中的fileName进行其路径的读取，删除commit的blobMap中对应的值 */
+        for (String stageFileName : removeStageFiles) {
+            if (blobMap.containsKey(stageFileName)) {
+                join(BLOBS_FOLDER, blobMap.get(stageFileName)).delete(); // 删除blobs中的文件
+                newCommit.removeBlob(stageFileName);   // 在newCommit中删除removeStage中的blob
+            }
+            join(REMOVE_STAGE_DIR, stageFileName).delete();
+        }
+
+        newCommit.saveCommit();
+
+        /* 更新HEAD指针和master指针 */
+        saveHEAD(getHeadBranchName(), newCommit.getHashName());
+        saveBranch(getHeadBranchName(), newCommit.getHashName());
     }
 }
